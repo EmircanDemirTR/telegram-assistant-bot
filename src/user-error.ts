@@ -15,7 +15,12 @@ export function describeUserFacingError(error: unknown): string {
   }
 
   if (error instanceof HttpError) {
-    return describeHttpStatus(serviceLabel(error.origin), error.status);
+    const description = describeHttpStatus(serviceLabel(error.origin), error.status);
+    // OpenRouter kaldırılan/yanlış yazılan model için 400 ya da 404 döner; "kaynak bulunamadı" tek başına anlaşılmaz.
+    if ((error.status === 400 || error.status === 404) && isOpenRouterOrigin(error.origin)) {
+      return `${description} .env dosyasındaki OPENROUTER_MODEL değeri artık geçerli olmayabilir; https://openrouter.ai/models adresinden güncel bir model seçin.`;
+    }
+    return description;
   }
 
   if (message.includes("OpenRouter response did not include message content")) {
@@ -54,16 +59,24 @@ const SERVICE_LABELS: ReadonlyArray<readonly [RegExp, string]> = [
 ];
 
 export function serviceLabel(origin: string): string {
-  let host = origin;
-  try {
-    host = new URL(origin).hostname;
-  } catch {
-    // origin degilse
-  }
+  const host = hostnameOf(origin);
   for (const [pattern, label] of SERVICE_LABELS) {
     if (pattern.test(host)) {
       return label;
     }
   }
   return host || "Dış servis";
+}
+
+function isOpenRouterOrigin(origin: string): boolean {
+  return /openrouter\.ai$/.test(hostnameOf(origin));
+}
+
+function hostnameOf(origin: string): string {
+  try {
+    return new URL(origin).hostname;
+  } catch {
+    // origin degilse
+    return origin;
+  }
 }

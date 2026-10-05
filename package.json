@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Kişisel Telegram Asistan Botu: Hava Durumu, Güncel Haberler, Teknoloji Bültenleri ve AI Sohbet.",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "dev": "tsx watch src/main.ts",

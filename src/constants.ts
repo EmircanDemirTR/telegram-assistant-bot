@@ -3,11 +3,19 @@ import type { RssSource } from "./types.js";
 export const DEFAULT_TIMEZONE = "Europe/Istanbul";
 export const DEFAULT_STATE_FILE = "./data/state.json";
 export const DEFAULT_OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
-export const DEFAULT_OPENROUTER_MODEL = "google/gemini-2.0-flash-001";
+/**
+ * Varsayılan yapay zeka modeli.
+ *
+ * OpenRouter eski modelleri zamanla kaldırır; sohbet "HTTP 404" ile hata verirse
+ * https://openrouter.ai/models adresinden güncel bir model seçip .env dosyasındaki
+ * OPENROUTER_MODEL değerini değiştirin. `.env.example` ile aynı tutulur
+ * (test/env-example.test.ts bunu denetler).
+ */
+export const DEFAULT_OPENROUTER_MODEL = "google/gemini-3.8-flash";
 
 /**
  * Hava durumu için varsayılan koordinatlar (İstanbul).
- * BRIEFING_LATITUDE ve BRIEFING_LONGITUDE ile değiştirilebilir.
+ * .env dosyasındaki LATITUDE ve LONGITUDE ile değiştirilebilir.
  */
 export const DEFAULT_BRIEFING_LATITUDE = 41.0082;
 export const DEFAULT_BRIEFING_LONGITUDE = 28.9784;

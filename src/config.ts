@@ -14,9 +14,51 @@ import type { Logger } from "./logger.js";
 import type { AppConfig, LogLevel } from "./types.js";
 
 /**
+ * Botun çalışması için zorunlu ayarları denetler.
+ *
+ * Her madde, kullanıcının ne yapması gerektiğini söyleyen bir Türkçe cümledir;
+ * liste boşsa yapılandırma kullanıma hazırdır.
+ */
+export function findConfigProblems(config: AppConfig): string[] {
+  const problems: string[] = [];
+
+  const token = config.telegram.botToken;
+  if (!token || token.includes("your_telegram_bot_token") || !token.includes(":")) {
+    problems.push(
+      "TELEGRAM_BOT_TOKEN eksik veya geçersiz. @BotFather'dan aldığınız token'ı .env dosyasına yapıştırın " +
+        "(örnek: 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ)."
+    );
+  }
+
+  // Grup sohbetlerinin ID'si eksi ile başlar (ör. -1001234567890); bu yüzden "-" kabul edilir.
+  const chatId = config.telegram.chatId;
+  if (!chatId || !/^-?\d+$/.test(chatId)) {
+    problems.push(
+      "TELEGRAM_CHAT_ID eksik veya geçersiz. Telegram'da @userinfobot'a mesaj atın, size verdiği Id numarasını " +
+        "(yalnızca rakamlar) .env dosyasına yazın. Bot yalnızca bu sohbete yanıt verir ve zamanlanmış mesajları buraya gönderir."
+    );
+  }
+
+  if (!isValidTimezone(config.timezone)) {
+    problems.push(`TIMEZONE geçersiz: "${config.timezone}". Örnek: Europe/Istanbul`);
+  }
+
+  return problems;
+}
+
+function isValidTimezone(timezone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Ortam değişkenlerini (process.env) okur ve yapılandırır.
  */
-export function loadConfig(env: NodeJS.ProcessEnv = process.env, _logger?: Logger): AppConfig {
+export function loadConfig(env: NodeJS.ProcessEnv = process.env, logger?: Logger): AppConfig {
   return {
     enabled: parseBoolean(env.BOT_ENABLED, true),
     timezone: trimToUndefined(env.TIMEZONE) ?? DEFAULT_TIMEZONE,
@@ -34,8 +76,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, _logger?: Logge
       appTitle: trimToUndefined(env.OPENROUTER_APP_TITLE) ?? "Telegram Asistan Botu"
     },
     briefing: {
-      latitude: parseCoordinate(env.LATITUDE, DEFAULT_BRIEFING_LATITUDE, 90),
-      longitude: parseCoordinate(env.LONGITUDE, DEFAULT_BRIEFING_LONGITUDE, 180),
+      latitude: parseCoordinate("LATITUDE", env.LATITUDE, DEFAULT_BRIEFING_LATITUDE, 90, logger),
+      longitude: parseCoordinate("LONGITUDE", env.LONGITUDE, DEFAULT_BRIEFING_LONGITUDE, 180, logger),
       locationName: trimToUndefined(env.LOCATION_NAME) ?? DEFAULT_BRIEFING_LOCATION_NAME,
       includeNews: parseBoolean(env.BRIEFING_INCLUDE_NEWS, true),
       weatherModel: trimToUndefined(env.WEATHER_MODEL) ?? DEFAULT_WEATHER_MODEL,
@@ -67,10 +109,20 @@ function parseLogLevel(value: string | undefined): LogLevel {
   return "info";
 }
 
-function parseCoordinate(value: string | undefined, defaultValue: number, maxAbs: number): number {
-  if (!value) return defaultValue;
-  const parsed = Number.parseFloat(value);
+function parseCoordinate(
+  name: string,
+  value: string | undefined,
+  defaultValue: number,
+  maxAbs: number,
+  logger?: Logger
+): number {
+  const text = value?.trim();
+  if (!text) return defaultValue;
+
+  // Türkçe yazımda ondalık ayırıcı virgüldür ("39,9334"); parseFloat bunu sessizce "39"a kırpardı.
+  const parsed = Number(text.replace(",", "."));
   if (!Number.isFinite(parsed) || Math.abs(parsed) > maxAbs) {
+    logger?.warn(`${name} değeri geçersiz ("${text}"); varsayılan konum kullanılıyor. Örnek: 39.9334`);
     return defaultValue;
   }
   return parsed;

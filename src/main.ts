@@ -1,4 +1,5 @@
-import { loadConfig } from "./config.js";
+import { findConfigProblems, loadConfig } from "./config.js";
+import { HttpError } from "./http.js";
 import { createLogger, errorMeta } from "./logger.js";
 import { loadState, saveStateAtomic, StateStore } from "./state.js";
 import { TelegramClient } from "./integrations/telegram.js";
@@ -13,11 +14,34 @@ import {
 } from "./jobs.js";
 import { Scheduler } from "./scheduler.js";
 
-// Node.js yerleşik .env okuyucusu (Node.js v20.6+)
-try {
-  process.loadEnvFile();
-} catch {
-  // .env dosyasi yoksa veya sistem env'leri kullaniliyorsa hata vermez
+// Node.js yerleşik .env okuyucusu. process.loadEnvFile Node.js v20.12+ / v21.7+ ile gelir;
+// eski bir Node'da sessizce atlanırsa .env okunmaz ve "token eksik" gibi yanıltıcı bir hata görülür.
+function loadDotEnvFile(): void {
+  if (typeof process.loadEnvFile !== "function") {
+    console.error(`\n❌ HATA: Node.js sürümünüz (${process.version}) çok eski.`);
+    console.error("👉 https://nodejs.org adresinden Node.js 22 (LTS) veya daha yenisini kurup tekrar deneyin.\n");
+    process.exit(1);
+  }
+
+  try {
+    process.loadEnvFile();
+  } catch (error) {
+    // .env dosyası yoksa sorun değil: Docker gibi ortamlarda değişkenler dışarıdan verilir.
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      console.error(`\n❌ HATA: .env dosyası okunamadı: ${(error as Error).message}\n`);
+      process.exit(1);
+    }
+  }
+}
+
+loadDotEnvFile();
+
+function exitWithRejectedToken(status: number): never {
+  console.error(`\n❌ HATA: Telegram bot token'ınızı kabul etmedi (HTTP ${status}).`);
+  console.error("👉 .env dosyasındaki TELEGRAM_BOT_TOKEN değerini BotFather'dan aldığınız token ile karşılaştırın:");
+  console.error("   tamamı kopyalanmış olmalı (eksik ya da fazla karakter, başka bir botun token'ı veya iptal edilmiş bir token olabilir).");
+  console.error("   Token'ı yeniden görmek için: @BotFather → /mybots → botunuzu seçin → API Token\n");
+  process.exit(1);
 }
 
 async function main(): Promise<void> {
@@ -27,20 +51,14 @@ async function main(): Promise<void> {
 
   logger.info("telegram assistant bot baslatiliyor...", { timezone: config.timezone });
 
-  const token = config.telegram.botToken;
-  if (!token || token.includes("your_telegram_bot_token") || !token.includes(":")) {
-    logger.error("HATA: Gecersiz veya eksik TELEGRAM_BOT_TOKEN!");
-    console.error("\n❌ HATA: Geçersiz veya eksik TELEGRAM_BOT_TOKEN!");
-    console.error("👉 Lütfen .env dosyasını oluşturup BotFather'dan aldığınız gerçek token'ı ekleyin.");
-    console.error("   Örnek: TELEGRAM_BOT_TOKEN=123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ\n");
+  const problems = findConfigProblems(config);
+  if (problems.length > 0) {
+    console.error("\n❌ Bot başlatılamadı. .env dosyanızdaki şu ayarları düzeltin:\n");
+    for (const problem of problems) {
+      console.error(`  • ${problem}`);
+    }
+    console.error("\n📖 Ayrıntılı adımlar için README.md dosyasındaki \"Yapılandırma\" bölümüne bakın.\n");
     process.exit(1);
-  }
-
-  const chatId = config.telegram.chatId;
-  if (!chatId || chatId.includes("your_chat_id")) {
-    console.warn("\n⚠️ UYARI: TELEGRAM_CHAT_ID belirtilmemiş veya şablon değerinde bırakılmış.");
-    console.warn("👉 Bot şu an gelen tüm Telegram kullanıcılarına yanıt verir.");
-    console.warn("   Yalnızca size yanıt vermesi için .env dosyasına kendi Chat ID'nizi yazmanız önerilir.\n");
   }
 
   const state = await loadState(config.stateFile, logger);
@@ -66,6 +84,10 @@ async function main(): Promise<void> {
     // Telegram komut menusunu otomatik ayarla
     await telegram.setCommandMenu(buildCommandMenu());
   } catch (error) {
+    // Telegram token'ı reddettiyse bot hiçbir şey yapamaz: yazım hatasını hemen ve açıkça göster.
+    if (error instanceof HttpError && (error.status === 401 || error.status === 404)) {
+      exitWithRejectedToken(error.status);
+    }
     logger.warn("telegram baslangic ayarlari uyarisi", errorMeta(error));
   }
 
@@ -82,8 +104,8 @@ async function main(): Promise<void> {
   // Telegram long polling baslat
   telegram.startLongPolling((message) => handleTelegramMessage(dependencies, message));
 
-  logger.info("✅ Bot basariyla calisiyor! Telegram'dan mesaj gonderebilirsiniz.", {
-    chatId: config.telegram.chatId ?? "(tum chatlere acik)",
+  logger.info("✅ Bot basariyla calisiyor! Telegram'da botunuza /start yazin. Durdurmak icin Ctrl+C.", {
+    chatId: config.telegram.chatId,
     aiStatus: openRouter.isConfigured() ? "aktif" : "pasif (anahtar yok)"
   });
 

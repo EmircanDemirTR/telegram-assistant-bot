@@ -127,6 +127,14 @@ export const BOT_COMMANDS: BotCommandDefinition[] = [
     description: "Komut listesi",
     inMenu: true,
     run: async () => helpText()
+  },
+  {
+    // Telegram, kullanıcı bota ilk kez "Başlat" düğmesine bastığında /start gönderir;
+    // menüde görünmez ama "Bilinmeyen komut" yerine karşılama mesajı döner.
+    name: "start",
+    description: "Botu başlat",
+    inMenu: false,
+    run: async () => ["👋 Merhaba! Ben kişisel asistan botunuzum.", "", helpText()].join("\n")
   }
 ];
 
