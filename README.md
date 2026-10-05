@@ -223,6 +223,8 @@ Değişiklikten sonra: `npm run dev` kullanıyorsanız bot kendiliğinden yenide
 
 **"❌ Telegram bot token'ınızı kabul etmedi (HTTP 401)"**: Token eksik ya da yanlış kopyalanmış, başka bir botun token'ı veya `/revoke` ile iptal edilmiş olabilir. BotFather → `/mybots` → botunuz → **API Token** bölümünden yeniden kopyalayın.
 
+**`docker compose up` komutunda "env file … .env not found" hatası**: `.env` dosyasını henüz oluşturmamışsınız. Yukarıdaki "Yapılandırma" adımında `.env.example` dosyasını `.env` adıyla kopyalayıp doldurun, sonra komutu tekrarlayın.
+
 **Bot mesajlarıma yanıt vermiyor**:
 1. Terminalde `✅ Bot basariyla calisiyor!` satırı var mı, bot hâlâ açık mı?
 2. Mesajı, `TELEGRAM_CHAT_ID` olarak yazdığınız hesaptan mı gönderiyorsunuz? Günlükte `yetkisiz chat id'den mesaj geldi` satırını görüyorsanız, satırdaki `chatId` değeri sizin gerçek Chat ID'nizdir: onu `.env` dosyasına yazıp botu yeniden başlatın.
